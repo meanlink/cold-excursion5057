@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from src.config.database import get_db
 from src.models import Dataset
-from src.schemas.dataset import DatasetInput
+from src.schemas.dataset import DatasetInput, SupplementInput
 from src.middlewares.auth import current_user, can_write
 from src.services import datasets
 from src.services.audit import record
@@ -20,3 +20,8 @@ def detail(id:int,db=Depends(get_db),u=Depends(current_user)):
     d=db.get(Dataset,id)
     if not d:raise HTTPException(404,'数据批次不存在')
     return {**dataset_dict(d),'records':d.records}
+@router.post('/{id}/records')
+def supplement(id:int,data:SupplementInput,db=Depends(get_db),u=Depends(can_write)):
+    d,added,deduplicated=datasets.supplement(db,id,data.records)
+    record(db,u.email,'dataset.supplement',{'id':d.id,'added':added,'deduplicated':deduplicated})
+    db.commit(); return {**dataset_dict(d),'added':added,'deduplicated':deduplicated}
